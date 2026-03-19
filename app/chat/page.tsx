@@ -252,15 +252,41 @@ setInput("");
 
       const data = await res.json();
 
-      const aiMessage = { role: "assistant", content: data.reply };
+// ❌ Nếu bị chặn (403)
+if (!res.ok) {
+  const aiMessage = {
+    role: "assistant",
+    content:
+      data.error || "🚫 Bạn đã dùng hết số câu hỏi. Vui lòng nâng cấp gói!",
+  };
 
-      setChats(prev =>
-        prev.map(chat =>
-          chat.id === currentChatId
-            ? { ...chat, messages: [...chat.messages, aiMessage] }
-            : chat
-        )
-      );
+  setChats(prev =>
+    prev.map(chat =>
+      chat.id === currentChatId
+        ? { ...chat, messages: [...chat.messages, aiMessage] }
+        : chat
+    )
+  );
+
+  // ⏳ 5 giây → chuyển trang upgrade
+  setTimeout(() => {
+    window.location.href = "/upgrade";
+  }, 5000);
+
+  setLoading(false);
+  return; // ❗ RẤT QUAN TRỌNG
+}
+
+// ✅ Nếu OK
+const aiMessage = { role: "assistant", content: data.reply };
+
+setChats(prev =>
+  prev.map(chat =>
+    chat.id === currentChatId
+      ? { ...chat, messages: [...chat.messages, aiMessage] }
+      : chat
+  )
+);
 
       setLoading(false);
       setInput("")
