@@ -1,6 +1,6 @@
 export const PLAN_LIMITS = {
   FREE: {
-    questions: 4,
+    questions: 5,
     tokens: 12500,
   },
   STANDARD: {

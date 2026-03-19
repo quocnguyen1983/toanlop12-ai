@@ -35,7 +35,7 @@ export default function UpgradePage() {
     name: "Free",
     price: "0đ",
     amount: 0,
-    questions: "4 câu hỏi / tháng",
+    questions: "5 câu hỏi / tháng",
     tokens: "12,500 tokens",
     model: "GPT-3.5",
     highlight: false,
