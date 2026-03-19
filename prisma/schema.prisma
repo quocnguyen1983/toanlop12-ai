@@ -16,6 +16,7 @@ model User {
   plan            String   @default("FREE")
   questionsUsed   Int      @default(0)
   tokensUsed      Int      @default(0)
+  resetDate      DateTime @default(now())
   monthlyResetAt  DateTime @default(now())
 
   createdAt       DateTime @default(now())
