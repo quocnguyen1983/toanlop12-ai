@@ -2,46 +2,105 @@ import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import prisma from "@/lib/prisma";
+
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
 export async function POST(req: NextRequest) {
- // ✅ Lấy token từ cookie (CÁCH ĐÚNG)
-const token = req.cookies.get("token")?.value;
+  // ✅ Lấy token
+  const token = req.cookies.get("token")?.value;
 
-if (!token) {
-  return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
-}
+  if (!token) {
+    return NextResponse.json({ error: "Chưa đăng nhập" }, { status: 401 });
+  }
 
-// ✅ Verify token
-let decoded: any;
-
-try {
-  decoded = jwt.verify(token, process.env.JWT_SECRET!);
-} catch (err) {
-  return NextResponse.json({ error: "Token không hợp lệ" }, { status: 401 });
-}
-
-// ✅ Lấy user từ database
-const user = await prisma.user.findUnique({
-  where: { id: (decoded as any).id },
-});
-
-if (!user) {
-  return NextResponse.json({ error: "User không tồn tại" }, { status: 404 });
-}
+  // ✅ Verify token
+  let decoded: any;
   try {
-    const { message, image } = await req.json()
+    decoded = jwt.verify(token, process.env.JWT_SECRET!);
+  } catch (err) {
+    return NextResponse.json({ error: "Token không hợp lệ" }, { status: 401 });
+  }
 
-const completion = await openai.responses.create({
-  model: "gpt-4o-mini",
-  input: [
-    {
-      role: "system",
-      content: [
+  // ✅ Lấy user
+  const user = await prisma.user.findUnique({
+    where: { id: decoded.id },
+  });
+
+  if (!user) {
+    return NextResponse.json({ error: "User không tồn tại" }, { status: 404 });
+  }
+
+  // =========================
+  // 🔥 RESET THEO THÁNG
+  // =========================
+  const now = new Date();
+
+  if (user.resetDate && now > user.resetDate) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        questionsUsed: 0,
+        tokensUsed: 0,
+        resetDate: new Date(
+          new Date().setMonth(new Date().getMonth() + 1)
+        ),
+      },
+    });
+
+    user.questionsUsed = 0;
+    user.tokensUsed = 0;
+  }
+
+  // =========================
+  // 🔥 CHECK LIMIT THEO GÓI
+  // =========================
+  const plan = (user.plan || "FREE").toUpperCase();
+
+let maxQuestions = 5;
+
+switch (plan) {
+  case "STANDARD":
+    maxQuestions = 500;
+    break;
+  case "PRO":
+    maxQuestions = 2000;
+    break;
+  case "PREMIUM":
+    maxQuestions = Infinity;
+    break;
+  case "FREE":
+  default:
+    maxQuestions = 5;
+}
+console.log("PLAN:", user.plan);
+console.log("QUESTIONS USED:", user.questionsUsed);
+console.log("MAX:", maxQuestions);
+  if (user.questionsUsed >= maxQuestions) {
+    return NextResponse.json(
+      {
+        error: "Bạn đã dùng hết số câu hỏi. Vui lòng nâng cấp gói!",
+      },
+      { status: 403 }
+    );
+  }
+
+  try {
+    const { message, image } = await req.json();
+
+    // =========================
+    // 🚀 GỌI AI (CHỈ KHI OK)
+    // =========================
+    const completion = await openai.responses.create({
+      model: "gpt-4o-mini",
+      input: [
         {
-          type: "input_text",
-          text: `
+          role: "system",
+          content: [
+            {
+              type: "input_text",
+              text: `
 Bạn là AI toán học.
 Khi viết công thức toán:
 
@@ -92,46 +151,50 @@ Ví dụ bảng biến thiên:
 | y | -∞ | ↑ | cực đại | ↓ | cực tiểu | ↑ | +∞ |
 
 Luôn trình bày rõ ràng để học sinh dễ hiểu.
-`
-        }
-      ]
-    },
-   {
-  role: "user",
-  content: image
-    ? [
-        {
-          type: "input_text",
-          text: message || "Giải bài toán trong ảnh"
+              `,
+            },
+          ],
         },
         {
-          type: "input_image",
-          image_url: image,
-          detail: "auto"
-        }
-      ]
-    : [
-        {
-          type: "input_text",
-          text: message || "Giải bài toán trong ảnh"
-        }
-      ]
-}
-  ]
-})
-    
+          role: "user",
+          content: image
+            ? [
+                {
+                  type: "input_text",
+                  text: message || "Giải bài toán trong ảnh",
+                },
+                {
+                  type: "input_image",
+                  image_url: image,
+                  detail: "auto",
+                },
+              ]
+            : [
+                {
+                  type: "input_text",
+                  text: message || "Giải bài toán trong ảnh",
+                },
+              ],
+        },
+      ],
+    });
+
     const usedTokens = completion.usage?.total_tokens || 0;
 
-await prisma.user.update({
-  where: { id: user.id },
-  data: {
-    questionsUsed: { increment: 1 },
-    tokensUsed: { increment: usedTokens },
-  },
-});
+    // =========================
+    // 📊 UPDATE SAU KHI SUCCESS
+    // =========================
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        questionsUsed: { increment: 1 },
+        tokensUsed: { increment: usedTokens },
+      },
+    });
+
     return NextResponse.json({
-  reply: completion.output_text,
-});
+      reply: completion.output_text,
+    });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ reply: "Có lỗi xảy ra." });
