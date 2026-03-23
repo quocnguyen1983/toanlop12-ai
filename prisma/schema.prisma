@@ -12,6 +12,7 @@ model User {
   name            String?
   email           String   @unique
   password        String?
+  role          Role     @default(USER)
   plan String @default("FREE")
 
   questionsUsed   Int      @default(0)
@@ -33,5 +34,8 @@ model Order {
 
   user        User     @relation(fields: [userId], references: [id])
 }
-
+enum Role {
+  USER
+  ADMIN
+}
 
