@@ -35,7 +35,10 @@ const token = generateToken({
   const response = NextResponse.json({
   message: "Login thành công",
 });
-
+response.cookies.set("user_email", user.email, {
+  httpOnly: true,
+  path: "/",
+});
 response.cookies.set("token", token, {
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",

@@ -3,8 +3,7 @@ import { NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 export async function POST() {
-
-  const response = NextResponse.redirect(new URL("/", process.env.NEXT_PUBLIC_APP_URL));
+  const response = NextResponse.redirect("/");
 
   response.cookies.set("token", "", {
     httpOnly: true,
@@ -13,5 +12,4 @@ export async function POST() {
   });
 
   return response;
-
 }

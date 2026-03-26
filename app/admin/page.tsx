@@ -2,41 +2,37 @@ import { redirect } from "next/navigation"
 import prisma from "@/lib/prisma"
 import { cookies } from "next/headers"
 import jwt from "jsonwebtoken"
+
 export const dynamic = "force-dynamic"
+
 export default async function AdminPage() {
+  // ✅ LẤY COOKIE (PHẢI CÓ await)
   const cookieStore = await cookies()
-const token = cookieStore.get("token")?.value
+  const token = cookieStore.get("token")?.value
 
-if (!token) {
-  return redirect("/")
-}
+  // ❌ chưa login → đá ra ngoài
+  if (!token) {
+    redirect("/")
+  }
 
-type JwtPayload = {
-  id: string
-  email: string
-}
+  let decoded: any
 
-let decoded: JwtPayload
+  try {
+    // ✅ verify token
+    decoded = jwt.verify(token, process.env.JWT_SECRET!)
+  } catch (err) {
+    redirect("/")
+  }
 
-try {
-  decoded = jwt.verify(token, process.env.JWT_SECRET as string) as JwtPayload
-} catch (err) {
-  return redirect("/")
-}
+  // ✅ lấy user từ DB
+  const user = await prisma.user.findUnique({
+    where: { email: decoded.email }
+  })
 
-if (!decoded.email) {
-  return redirect("/")
-}
-
-const user = await prisma.user.findUnique({
-  where: {
-    email: decoded.email,
-  },
-})
-
-if (!user || user.role?.toUpperCase() !== "ADMIN") {
-  return redirect("/")
-}
+  // ❌ không phải admin → cút 😄
+  if (!user || user.role !== "ADMIN") {
+    redirect("/")
+  }
   return (
     <div className="min-h-screen bg-linear-to-b from-slate-950 to-slate-900 text-white p-10">
 
