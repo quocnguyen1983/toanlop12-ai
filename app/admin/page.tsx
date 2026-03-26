@@ -5,35 +5,38 @@ import jwt from "jsonwebtoken"
 export const dynamic = "force-dynamic"
 export default async function AdminPage() {
   const cookieStore = await cookies()
-  const token = cookieStore.get("token")?.value
+const token = cookieStore.get("token")?.value
 
-  if (!token) {
-    return redirect("/")
-  }
+if (!token) {
+  return redirect("/")
+}
 
-  let decoded: any
+type JwtPayload = {
+  id: string
+  email: string
+}
 
-  try {
-    decoded = jwt.verify(token, process.env.JWT_SECRET as string)
-  } catch (err) {
-    return redirect("/")
-  }
+let decoded: JwtPayload
 
-  // 🔥 DEBUG LOG (QUAN TRỌNG)
-  console.log("DECODED:", decoded)
+try {
+  decoded = jwt.verify(token, process.env.JWT_SECRET as string) as JwtPayload
+} catch (err) {
+  return redirect("/")
+}
 
-  const user = await prisma.user.findUnique({
-    where: {
-      email: decoded.email,
-    },
-  })
+if (!decoded.email) {
+  return redirect("/")
+}
 
-  console.log("USER:", user)
+const user = await prisma.user.findUnique({
+  where: {
+    email: decoded.email,
+  },
+})
 
-  // 🔥 FIX role (convert uppercase)
-  if (!user || user.role?.toUpperCase() !== "ADMIN") {
-    return redirect("/")
-  }
+if (!user || user.role?.toUpperCase() !== "ADMIN") {
+  return redirect("/")
+}
   return (
     <div className="min-h-screen bg-linear-to-b from-slate-950 to-slate-900 text-white p-10">
 
